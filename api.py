@@ -1,9 +1,9 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_restful import Resource, Api
 import os
 import mysql.connector
 
-db_pass = os.getenv('DB_PASS')
+db_pass = os.getenv('DB_PASSWD')
 db_name = os.getenv('DB_NAME')
 db_user = os.getenv('DB_USER')
 db_host = os.getenv('DB_HOST')
@@ -18,29 +18,29 @@ class ListTables(Resource):
 
 class GetDataFromTable(Resource):
     def dbCon(self, host, user, passwd, db):
-        con = mysql.connector.connect(host=host, database=db, user=user, password=passwd)
+        con = mysql.connector.connect(host=host, database=db, user=user, password=passwd, auth_plugin='mysql_native_password')
         if con:
+            self.con = con
             return self.con
         else:
             return False
 
-    def dbQuery(table, columns):
+    def dbQuery(self, table, columns):
         cols = ",".join(columns)
-        
-        dbCon(db_host, db_name, db_user, db_pass)
+        self.dbCon(db_host, db_user, db_pass, db_name)
         try:
             cursor = self.con.cursor()
-            cursor.execute("select " + col + " from " + table)
-            return cursor.fetchAll()
+            cursor.execute("select " + cols + " from " + table)
+            return cursor.fetchall()
         finally:
             self.con.close()
 
 
     def post(self):
-        req = request.json
+        req = request.get_json(force=True)
         columns = req['columns']
         tableName = req['table']
-        result = dbQuery(tableName, columns)
+        result = self.dbQuery(tableName, columns)
         return result
 
 
