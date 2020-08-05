@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from flask_restful import Resource, Api
+from flask_restplus import Resource, Api, fields
 import os
 import mysql.connector
 from jsonschema import validate, ValidationError
@@ -11,13 +11,13 @@ db_user = os.getenv('DB_USER')
 db_host = os.getenv('DB_HOST')
 
 app = Flask(__name__)
-api = Api(app)
-
+api = Api(app,version='0.2', title='mysqlRESTapi', description='MySQL REST API')
 
 class ListTables(Resource):
     def get(self):
         return {'hello': 'world'}
 
+@api.route('/getdata')
 class GetDataFromTable(Resource):
     selectSchema = {
       "type": "object",
@@ -30,7 +30,12 @@ class GetDataFromTable(Resource):
       "additionalProperties": False
       }
  
-
+    resSchema = api.model('Resource',
+            {
+          "table"   : fields.String,
+          "columns" : fields.List(fields.String),
+          "where"   : fields.String,
+          })
 
     def dbCon(self, host, user, passwd, db):
         try:
@@ -40,7 +45,7 @@ class GetDataFromTable(Resource):
         except mysql.connector.Error as err:
             print("Something went wrong: {}".format(err))
             error = '{"error": ' + '"' + str(err) + '"}'
-            return json.loads(error)
+            return json.loads(error), 503
 
     def dbQuery(self, table, columns):
             cols = ",".join(columns)
@@ -51,11 +56,14 @@ class GetDataFromTable(Resource):
                 return cursor.fetchall()
             except  mysql.connector.Error as err:
                 error = '{"error": ' + '"' + str(err) + '"}'
-                return json.loads(error)
+                return json.loads(error), 400
             finally:
                 self.con.close()
 
-
+    @api.expect(resSchema)
+    @api.response(200, 'success')
+    @api.response(400, 'invalid json')
+    @api.response(503, 'internal db problem')
     def post(self):
         req = request.get_json(force=True)
         try:
@@ -65,7 +73,7 @@ class GetDataFromTable(Resource):
         columns = req['columns']
         tableName = req['table']
         result = self.dbQuery(tableName, columns)
-        return result
+        return result, 200
 
 
 api.add_resource(GetDataFromTable, '/getdata')
