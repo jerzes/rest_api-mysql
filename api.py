@@ -3,6 +3,7 @@ from flask_restful import Resource, Api
 import os
 import mysql.connector
 from jsonschema import validate, ValidationError
+import json
 
 db_pass = os.getenv('DB_PASSWD')
 db_name = os.getenv('DB_NAME')
@@ -32,22 +33,27 @@ class GetDataFromTable(Resource):
 
 
     def dbCon(self, host, user, passwd, db):
-        con = mysql.connector.connect(host=host, database=db, user=user, password=passwd, auth_plugin='mysql_native_password')
-        if con:
-            self.con = con
-            return self.con
-        else:
-            return False
+        try:
+            self.con = mysql.connector.connect(host=host, database=db, user=user, password=passwd, auth_plugin='mysql_native_password')
+            return True
+
+        except mysql.connector.Error as err:
+            print("Something went wrong: {}".format(err))
+            error = '{"error": ' + '"' + str(err) + '"}'
+            return json.loads(error)
 
     def dbQuery(self, table, columns):
-        cols = ",".join(columns)
-        self.dbCon(db_host, db_user, db_pass, db_name)
-        try:
-            cursor = self.con.cursor()
-            cursor.execute("select " + cols + " from " + table)
-            return cursor.fetchall()
-        finally:
-            self.con.close()
+            cols = ",".join(columns)
+            self.dbCon(db_host, db_user, db_pass, db_name)
+            try:
+                cursor = self.con.cursor()
+                cursor.execute("select " + cols + " from " + table)
+                return cursor.fetchall()
+            except  mysql.connector.Error as err:
+                error = '{"error": ' + '"' + str(err) + '"}'
+                return json.loads(error)
+            finally:
+                self.con.close()
 
 
     def post(self):
@@ -55,7 +61,7 @@ class GetDataFromTable(Resource):
         try:
             validate(instance=req, schema=self.selectSchema)
         except ValidationError as err:
-            return '{"error" : "True","msg" : "not valid json"}'
+            return json.loads('{"error" : "True","msg" : "not valid json"}')
         columns = req['columns']
         tableName = req['table']
         result = self.dbQuery(tableName, columns)
