@@ -60,6 +60,16 @@ class GetDataFromTable(Resource):
             finally:
                 self.con.close()
 
+    def formatResponse(self, response, columns):
+        json_list = []
+        for row in response:
+            result_json = {}
+            for i in range(0, len(columns)):
+                result_json[columns[i]] = row[i]
+            json_list.append(result_json)
+        return json_list
+
+
     @api.expect(resSchema)
     @api.response(200, 'success')
     @api.response(400, 'invalid json')
@@ -72,7 +82,8 @@ class GetDataFromTable(Resource):
             return json.loads('{"error" : "True","msg" : "not valid json"}')
         columns = req['columns']
         tableName = req['table']
-        result = self.dbQuery(tableName, columns)
+        query = self.dbQuery(tableName, columns)
+        result = self.formatResponse(query, columns)
         return result, 200
 
 
