@@ -53,17 +53,26 @@ class GetDataFromTable(Resource):
     def dbQuery(self, table, columns):
             cols = ",".join(columns)
             if not  self.dbCon(db_host, db_user, db_pass, db_name):
-                return False
+                return False, False
             try:
                 cursor = self.con.cursor()
                 cursor.execute("select " + cols + " from " + table)
                 resp = cursor.fetchall()
                 self.con.close()
-                return resp
+                return resp, False
             except  mysql.connector.Error as err:
                 logger.warn(err)
-                return False
-
+                return False, err.errno
+    
+    def dbErrorMsg(self, errno):
+        errdict = {
+            1146 : "table doesn't exist",
+            1054 : "unknown column"
+        }
+        if errno in errdict:
+            return errdict[errno]
+        else:
+            return "other db issue" 
                
 
     def formatResponse(self, response, columns):
@@ -89,9 +98,11 @@ class GetDataFromTable(Resource):
             
         columns = req['columns']
         tableName = req['table']
-        query = self.dbQuery(tableName, columns)
-        if not query:
-            return json.loads('{"message" : "database error","cause" : "db connection or query issue"}'), 503
+        query, errresp = self.dbQuery(tableName, columns)
+        if query == False and errresp:
+            return json.loads('{"message" : "database error","cause" : "' + self.dbErrorMsg(errresp) + '"}'), 404
+        elif query == False and errresp == False:
+            return json.loads('{"message" : "database error","cause" : "database is down"}'), 503
         else:
             result = self.formatResponse(query, columns)
             return result, 200
