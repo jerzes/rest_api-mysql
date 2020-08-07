@@ -4,11 +4,15 @@ import os
 import mysql.connector
 from jsonschema import validate, ValidationError
 import json
+import logging
 
 db_pass = os.getenv('DB_PASSWD')
 db_name = os.getenv('DB_NAME')
 db_user = os.getenv('DB_USER')
 db_host = os.getenv('DB_HOST')
+
+logging.basicConfig(format='%(asctime)s %(levelname)s * %(message)s')
+logger = logging.getLogger('logging')
 
 app = Flask(__name__)
 api = Api(app,version='0.2', title='mysqlRESTapi', description='MySQL REST API')
@@ -43,22 +47,24 @@ class GetDataFromTable(Resource):
             return True
 
         except mysql.connector.Error as err:
-            print("Something went wrong: {}".format(err))
-            error = '{"error": ' + '"' + str(err) + '"}'
-            return json.loads(error), 503
+            logger.error(err)
+            return False
 
     def dbQuery(self, table, columns):
             cols = ",".join(columns)
-            self.dbCon(db_host, db_user, db_pass, db_name)
+            if not  self.dbCon(db_host, db_user, db_pass, db_name):
+                return False
             try:
                 cursor = self.con.cursor()
                 cursor.execute("select " + cols + " from " + table)
-                return cursor.fetchall()
-            except  mysql.connector.Error as err:
-                error = '{"error": ' + '"' + str(err) + '"}'
-                return json.loads(error), 400
-            finally:
+                resp = cursor.fetchall()
                 self.con.close()
+                return resp
+            except  mysql.connector.Error as err:
+                logger.warn(err)
+                return False
+
+               
 
     def formatResponse(self, response, columns):
         json_list = []
@@ -79,12 +85,16 @@ class GetDataFromTable(Resource):
         try:
             validate(instance=req, schema=self.selectSchema)
         except ValidationError as err:
-            return json.loads('{"error" : "True","msg" : "not valid json"}')
+            return json.loads('{"message" : "json error","cause" : "' + str(err.message) +'"}'), 400
+            
         columns = req['columns']
         tableName = req['table']
         query = self.dbQuery(tableName, columns)
-        result = self.formatResponse(query, columns)
-        return result, 200
+        if not query:
+            return json.loads('{"message" : "database error","cause" : "db connection or query issue"}'), 503
+        else:
+            result = self.formatResponse(query, columns)
+            return result, 200
 
 
 api.add_resource(GetDataFromTable, '/getdata')
