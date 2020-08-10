@@ -11,7 +11,7 @@ db_name = os.getenv('DB_NAME')
 db_user = os.getenv('DB_USER')
 db_host = os.getenv('DB_HOST')
 
-api = Namespace('api', description='Gets data from table base on json payload', path='/getdata')
+api = Namespace('api', description='Gets data from table base on json payload', path='/')
 
 logging.basicConfig(format='%(asctime)s %(levelname)s * %(message)s')
 logger = logging.getLogger('logging')
@@ -81,10 +81,9 @@ class GetDataFromTable(Resource):
 
 
     @api.expect(resSchema)
-    #@api.response(200, 'success')
-    # @api.response(400, 'invalid json')
-    # @api.response(503, 'internal db problem')
-    @api.marshal_with(resSchema)
+    @api.response(200, 'success')
+    @api.response(400, 'invalid json')
+    @api.response(503, 'internal db problem')
     def post(self):
         req = request.get_json(force=True)
         try:
