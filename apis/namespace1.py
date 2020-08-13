@@ -1,10 +1,11 @@
 from flask import Flask, request
 from flask_restplus import Resource, fields, Namespace
-import os
-import mysql.connector
 from jsonschema import validate, ValidationError
-import json
+import mysql.connector
 import logging
+import json
+import os
+
 
 db_pass = os.getenv('DB_PASSWD')
 db_name = os.getenv('DB_NAME')
@@ -101,3 +102,32 @@ class GetDataFromTable(Resource):
         else:
             result = self.formatResponse(query, columns)
             return result, 200
+
+@api.route('/gettables')
+class GetTables(Resource):
+    def gettables(self):
+        try:
+            con = mysql.connector.connect(host=db_host, database=db_name, user=db_user, password=db_pass, auth_plugin='mysql_native_password')
+            cursor = con.cursor()
+            cursor.execute("show tables")
+            resp = cursor.fetchall()
+            return resp
+
+        except mysql.connector.Error as err:
+            logger.error(err)
+            return False
+
+    def formatResponse(self, response):
+        tablist = []
+        for i in response:
+            table_list = '{"name": "'+ i[0] + '"}'
+            tablist.append(json.loads(table_list))
+        return tablist
+
+    def get(self):
+        gettab = self.gettables()
+        if gettab:
+            response = self.formatResponse(gettab)
+            return response, 200
+        else:
+            return  json.loads('{"message" : "database error","cause" : "database is down"}'), 503
