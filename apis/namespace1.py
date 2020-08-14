@@ -46,13 +46,16 @@ class GetDataFromTable(Resource):
             logger.error(err)
             return False
 
-    def dbQuery(self, table, columns):
+    def dbQuery(self, table, columns, where_cond=False):
             cols = ",".join(columns)
             if not  self.dbCon(db_host, db_user, db_pass, db_name):
                 return False, False
             try:
                 cursor = self.con.cursor()
-                cursor.execute("select " + cols + " from " + table)
+                if where_cond:
+                    cursor.execute("select " + cols + " from " + table + " where " + where_cond)
+                else:
+                    cursor.execute("select " + cols + " from " + table)
                 resp = cursor.fetchall()
                 self.con.close()
                 return resp, False
@@ -91,10 +94,14 @@ class GetDataFromTable(Resource):
             validate(instance=req, schema=self.selectSchema)
         except ValidationError as err:
             return json.loads('{"message" : "json error","cause" : "' + str(err.message) +'"}'), 400
-            
+        try:
+            where = req['where']
+            print(where)
+        except:
+            where = False
         columns = req['columns']
         tableName = req['table']
-        query, errresp = self.dbQuery(tableName, columns)
+        query, errresp = self.dbQuery(tableName, columns, where)
         if query == False and errresp:
             return json.loads('{"message" : "database error","cause" : "' + self.dbErrorMsg(errresp) + '"}'), 404
         elif query == False and errresp == False:
